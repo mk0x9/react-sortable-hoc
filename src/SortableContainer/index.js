@@ -70,6 +70,7 @@ export default function sortableContainer(WrappedComponent, config = {withRef: f
       onSortStart: PropTypes.func,
       onSortMove: PropTypes.func,
       onSortEnd: PropTypes.func,
+      onAnimateNodes: PropTypes.func,
       shouldCancelStart: PropTypes.func,
       pressDelay: PropTypes.number,
       useDragHandle: PropTypes.bool,
@@ -406,8 +407,7 @@ export default function sortableContainer(WrappedComponent, config = {withRef: f
         node.edgeOffset = null;
 
         // Remove the transforms / transitions
-        el.style[`${vendorPrefix}Transform`] = '';
-        el.style[`${vendorPrefix}TransitionDuration`] = '';
+        this.constructor.removeElementAnimatedStyle(el);
       }
 
       // Stop autoscroll
@@ -435,6 +435,11 @@ export default function sortableContainer(WrappedComponent, config = {withRef: f
 
       this._touched = false;
     };
+
+    static removeElementAnimatedStyle(el) {
+      el.style[`${vendorPrefix}Transform`] = '';
+      el.style[`${vendorPrefix}TransitionDuration`] = '';
+    }
 
     getEdgeOffset(node, offset = {top: 0, left: 0}) {
       // Get the actual offsetTop / offsetLeft value, no matter how deep the node is nested
@@ -579,6 +584,7 @@ export default function sortableContainer(WrappedComponent, config = {withRef: f
         top: (window.pageYOffset - this.initialWindowScroll.top),
         left: (window.pageXOffset - this.initialWindowScroll.left),
       };
+      const animatedProps = {};
       this.newIndex = null;
 
       for (let i = 0, len = nodes.length; i < len; i++) {
@@ -624,13 +630,14 @@ export default function sortableContainer(WrappedComponent, config = {withRef: f
             node.style.visibility = 'hidden';
             node.style.opacity = 0;
           }
-          continue;
+          // continue;
         }
 
         if (transitionDuration) {
-          node.style[
-            `${vendorPrefix}TransitionDuration`
-          ] = `${transitionDuration}ms`;
+          if (!animatedProps[i]) {
+            animatedProps[i] = {};
+          }
+          animatedProps[i][`${vendorPrefix}TransitionDuration`] = `${transitionDuration}ms`;
         }
 
         if (this.axis.x) {
@@ -717,12 +724,64 @@ export default function sortableContainer(WrappedComponent, config = {withRef: f
             }
           }
         }
-        node.style[`${vendorPrefix}Transform`] = `translate3d(${translate.x}px,${translate.y}px,0)`;
+        if (!animatedProps[i]) {
+          animatedProps[i] = {};
+        }
+        animatedProps[i][`${vendorPrefix}Transform`] = `translate3d(${translate.x}px,${translate.y}px,0)`;
       }
 
       if (this.newIndex == null) {
         this.newIndex = this.index;
       }
+
+      const indexTranslate = {
+        x: 0,
+        y: 0
+      };
+
+      if (this.index < this.newIndex) { // dragged down/right
+        for (let i = this.index + 1; i <= this.newIndex; i++) {
+          const node = nodes[i];
+          if (i + 1 !== nodes.length) {
+            indexTranslate.y += nodes[i + 1].edgeOffset.top - nodes[i].edgeOffset.top;
+            indexTranslate.x += nodes[i + 1].edgeOffset.left - nodes[i].edgeOffset.left;
+          } else {
+            if (this.axis.y) {
+              indexTranslate.y += nodes[i].node.offsetHeight; // possibly bad
+            }
+            if (this.axis.x) {
+              indexTranslate.x += nodes[i].node.offsetWidth; // possibly bad
+            }
+          }
+        }
+      } else if (this.index > this.newIndex) { // dragged up/left
+        for (let i = this.index; i > this.newIndex; i--) {
+          const node = nodes[i];
+          indexTranslate.y -= nodes[i].edgeOffset.top - nodes[i - 1].edgeOffset.top;
+          indexTranslate.x -= nodes[i].edgeOffset.left - nodes[i - 1].edgeOffset.left;
+        }
+      }
+      animatedProps[this.index][`${vendorPrefix}Transform`] = `translate3d(${indexTranslate.x}px,${indexTranslate.y}px,0)`;
+      this.setAnimatedProps(animatedProps);
+    }
+
+    setAnimatedProps = (animatedProps) => {
+      const { onAnimateNodes } = this.props;
+      if (onAnimateNodes) {
+        onAnimateNodes(animatedProps);
+        return;
+      }
+
+      const nodes = this.manager.getOrderedRefs();
+
+      Object.keys(animatedProps).forEach(index => {
+        const {node} = nodes[Number(index)];
+        const nodeProps = animatedProps[index];
+
+        Object.keys(nodeProps).forEach(prop => {
+          node.style[prop] = nodeProps[prop];
+        });
+      });
     }
 
     autoscroll = () => {
@@ -808,6 +867,7 @@ export default function sortableContainer(WrappedComponent, config = {withRef: f
             'onSortStart',
             'onSortMove',
             'onSortEnd',
+            'onAnimateNodes',
             'axis',
             'lockAxis',
             'lockOffset',
@@ -820,3 +880,7 @@ export default function sortableContainer(WrappedComponent, config = {withRef: f
     }
   };
 }
+
+// Local Variables:
+// js2-basic-offset: 2
+// End:
