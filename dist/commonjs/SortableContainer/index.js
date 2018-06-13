@@ -605,6 +605,9 @@ function sortableContainer(WrappedComponent) {
             hideSortableGhost = _props3.hideSortableGhost;
 
         var nodes = this.manager.getOrderedRefs();
+        var nodesMapping = nodes.reduce(function (accumulator, currentElement, index) {
+          return accumulator[currentElement.node.sortableInfo.index] = index, accumulator;
+        }, {});
         var deltaScroll = {
           left: this.scrollContainer.scrollLeft - this.initialScroll.left,
           top: this.scrollContainer.scrollTop - this.initialScroll.top
@@ -744,7 +747,7 @@ function sortableContainer(WrappedComponent) {
 
         if (this.index < this.newIndex) {
           // dragged down/right
-          for (var _i = this.index + 1; _i <= this.newIndex; _i++) {
+          for (var _i = nodesMapping[this.index] + 1; _i <= nodesMapping[this.newIndex]; _i++) {
             var node = nodes[_i];
             if (_i + 1 !== nodes.length) {
               indexTranslate.y += nodes[_i + 1].edgeOffset.top - nodes[_i].edgeOffset.top;
@@ -760,13 +763,17 @@ function sortableContainer(WrappedComponent) {
           }
         } else if (this.index > this.newIndex) {
           // dragged up/left
-          for (var _i2 = this.index; _i2 > this.newIndex; _i2--) {
+          for (var _i2 = nodesMapping[this.index]; _i2 > nodesMapping[this.newIndex]; _i2--) {
             var _node = nodes[_i2];
             indexTranslate.y -= nodes[_i2].edgeOffset.top - nodes[_i2 - 1].edgeOffset.top;
             indexTranslate.x -= nodes[_i2].edgeOffset.left - nodes[_i2 - 1].edgeOffset.left;
           }
         }
-        animatedProps[this.index][_utils.vendorPrefix + 'Transform'] = 'translate3d(' + indexTranslate.x + 'px,' + indexTranslate.y + 'px,0)';
+
+        if (this.index in nodesMapping) {
+          animatedProps[nodesMapping[this.index]][_utils.vendorPrefix + 'Transform'] = 'translate3d(' + indexTranslate.x + 'px,' + indexTranslate.y + 'px,0)';
+        }
+
         this.setAnimatedProps(animatedProps);
       }
     }, {

@@ -572,6 +572,12 @@ export default function sortableContainer(WrappedComponent, config = {withRef: f
     animateNodes() {
       const {transitionDuration, hideSortableGhost} = this.props;
       const nodes = this.manager.getOrderedRefs();
+      const nodesMapping = nodes.reduce(
+        (accumulator, currentElement, index) => (
+          (accumulator[currentElement.node.sortableInfo.index] = index), accumulator
+        ),
+        {}
+      );
       const deltaScroll = {
         left: this.scrollContainer.scrollLeft - this.initialScroll.left,
         top: this.scrollContainer.scrollTop - this.initialScroll.top,
@@ -740,7 +746,7 @@ export default function sortableContainer(WrappedComponent, config = {withRef: f
       };
 
       if (this.index < this.newIndex) { // dragged down/right
-        for (let i = this.index + 1; i <= this.newIndex; i++) {
+        for (let i = nodesMapping[this.index] + 1; i <= nodesMapping[this.newIndex]; i++) {
           const node = nodes[i];
           if (i + 1 !== nodes.length) {
             indexTranslate.y += nodes[i + 1].edgeOffset.top - nodes[i].edgeOffset.top;
@@ -755,13 +761,17 @@ export default function sortableContainer(WrappedComponent, config = {withRef: f
           }
         }
       } else if (this.index > this.newIndex) { // dragged up/left
-        for (let i = this.index; i > this.newIndex; i--) {
+        for (let i = nodesMapping[this.index]; i > nodesMapping[this.newIndex]; i--) {
           const node = nodes[i];
           indexTranslate.y -= nodes[i].edgeOffset.top - nodes[i - 1].edgeOffset.top;
           indexTranslate.x -= nodes[i].edgeOffset.left - nodes[i - 1].edgeOffset.left;
         }
       }
-      animatedProps[this.index][`${vendorPrefix}Transform`] = `translate3d(${indexTranslate.x}px,${indexTranslate.y}px,0)`;
+
+      if (this.index in nodesMapping) {
+        animatedProps[nodesMapping[this.index]][`${vendorPrefix}Transform`] = `translate3d(${indexTranslate.x}px,${indexTranslate.y}px,0)`;
+      }
+
       this.setAnimatedProps(animatedProps);
     }
 
